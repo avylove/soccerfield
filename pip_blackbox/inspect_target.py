@@ -10,6 +10,14 @@ import tempfile
 
 import target_report
 
+try:
+    unicode
+except NameError:
+    HAS_UNICODE_TYPE = False
+else:
+    HAS_UNICODE_TYPE = True
+
+
 def get_report(python_exc):
 
     report = ''
@@ -20,7 +28,23 @@ def get_report(python_exc):
     try:
         report_out = tempfile.NamedTemporaryFile(delete=False)
         report_out.close()
-        proc = subprocess.Popen((python_exc, '-E', report_exc, report_out.name))
+
+        # Sanitize environment
+        env = os.environ.copy()
+        for envvar in ('PYTHONPATH', 'PYTHONHOME'):
+            if envvar in env:
+                del env[envvar]
+
+        # Escape arguments
+        args = [python_exc, report_exc, report_out.name]
+
+        if HAS_UNICODE_TYPE:
+            sys_encoding = sys.getfilesystemencoding()
+            for idx, arg in enumerate(args):
+                if isinstance(arg, unicode):
+                    args[idx] = args.encode(sys_encoding)
+
+        proc = subprocess.Popen(args, env=env)
         proc.communicate()
         if not proc.returncode:
             with open(report_out.name) as report_in:
